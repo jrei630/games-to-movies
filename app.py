@@ -11,7 +11,7 @@ st.subheader("Find movies based on the video games you love")
 
 @st.cache_data
 def load_data():
-    games_raw = pd.read_csv("game_info.csv")
+    games_raw = pd.read_csv("game_info_small (1).csv")
     movies_raw = pd.read_csv("tmdb_5000_movies.csv")
 
     games = pd.DataFrame({
