@@ -10,6 +10,21 @@ st.set_page_config(page_title="Games To Movies", page_icon="🎮", layout="cente
 st.title("🎮 Games To Movies")
 st.subheader("Find movies based on the video games you love")
 
+# Maps Steam game genres to related TMDB movie genres
+GENRE_MAP = {
+    'action': ['action', 'adventure', 'thriller'],
+    'adventure': ['adventure', 'action', 'fantasy'],
+    'rpg': ['fantasy', 'adventure', 'action'],
+    'strategy': ['war', 'history', 'drama'],
+    'simulation': ['drama', 'science fiction'],
+    'casual': ['family', 'comedy'],
+    'indie': ['drama', 'comedy'],
+    'racing': ['action', 'thriller'],
+    'sports': ['drama'],
+    'massively multiplayer': ['action', 'science fiction'],
+    'free to play': ['action', 'adventure'],
+}
+
 @st.cache_data
 def load_data():
     games_raw = pd.read_csv("steam_games.csv")
@@ -40,11 +55,25 @@ def load_data():
 @st.cache_resource
 def build_vectors(_games, _movies):
     all_text = pd.concat([_games['description'], _movies['description']])
-    vectorizer = TfidfVectorizer(stop_words='english', max_features=5000)
+    # ngram_range=(1,2) captures two-word phrases like "open world"
+    vectorizer = TfidfVectorizer(stop_words='english', max_features=8000, ngram_range=(1, 2))
     vectorizer.fit(all_text)
     game_vectors = vectorizer.transform(_games['description'])
     movie_vectors = vectorizer.transform(_movies['description'])
     return game_vectors, movie_vectors
+
+@st.cache_data
+def precompute_movie_genres(_movies):
+    return [set(m.lower() for m in re.findall(r'"name":\s*"([^"]+)"', str(g)))
+            for g in _movies['genre']]
+
+def game_targets(genre_str):
+    out = set()
+    for g in str(genre_str).lower().split(','):
+        g = g.strip()
+        if g:
+            out.update(GENRE_MAP.get(g, [g]))
+    return out
 
 def find_game(game_title):
     query = game_title.strip().lower()
@@ -69,12 +98,15 @@ def recommend(game_list, top_n=5):
             continue
 
         matched_games.append(games.iloc[game_idx]['title'])
+        targets = game_targets(games.iloc[game_idx]['genre'])
         game_vec = game_vectors[game_idx]
         similarities = cosine_similarity(game_vec, movie_vectors)[0]
 
         for i, score in enumerate(similarities):
+            # description similarity + small genre-match bonus
+            bonus = 0.1 if (targets & movie_genres_list[i]) else 0
             title = movies.iloc[i]['title']
-            movie_scores[title] = movie_scores.get(title, 0) + score
+            movie_scores[title] = movie_scores.get(title, 0) + score + bonus
 
     ranked = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
     return ranked[:top_n], matched_games, not_found
@@ -82,6 +114,7 @@ def recommend(game_list, top_n=5):
 with st.spinner("Loading data..."):
     games, movies = load_data()
     game_vectors, movie_vectors = build_vectors(games, movies)
+    movie_genres_list = precompute_movie_genres(movies)
 
 st.markdown("---")
 st.markdown("### Enter your favorite games")
