@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -11,7 +12,7 @@ st.subheader("Find movies based on the video games you love")
 
 @st.cache_data
 def load_data():
-    games_raw = pd.read_csv("game_info_small (1).csv")
+    games_raw = pd.read_csv("game_info_small.csv")
     movies_raw = pd.read_csv("tmdb_5000_movies.csv")
 
     games = pd.DataFrame({
@@ -41,17 +42,19 @@ def load_data():
     return games, movies
 
 @st.cache_resource
-def build_vectors(games, movies):
-    all_descriptions = pd.concat([games['description'], movies['description']])
+def build_vectors(_games, _movies):
+    all_descriptions = pd.concat([_games['description'], _movies['description']])
     vectorizer = TfidfVectorizer(stop_words='english', max_features=5000)
     vectorizer.fit(all_descriptions)
-    game_vectors = vectorizer.transform(games['description'])
-    movie_vectors = vectorizer.transform(movies['description'])
+    game_vectors = vectorizer.transform(_games['description'])
+    movie_vectors = vectorizer.transform(_movies['description'])
     return vectorizer, game_vectors, movie_vectors
 
-with st.spinner("Loading data..."):
-    games, movies = load_data()
-    vectorizer, game_vectors, movie_vectors = build_vectors(games, movies)
+def extract_movie_genres(genre_str):
+    return [m.lower() for m in re.findall(r'"name":\s*"([^"]+)"', str(genre_str))]
+
+def extract_game_genres(genre_str):
+    return [g.strip().lower() for g in str(genre_str).split('||')]
 
 def recommend(game_list, top_n=5):
     movie_scores = {}
@@ -70,27 +73,26 @@ def recommend(game_list, top_n=5):
 
         for i, score in enumerate(similarities):
             movie_genres = extract_movie_genres(movies.iloc[i]['genre'])
-            
-            # Check if any genre overlaps
             genre_match = any(
                 any(gg in mg or mg in gg for mg in movie_genres)
                 for gg in game_genres
             )
-            
             if genre_match:
                 title = movies.iloc[i]['title']
-                # Boost score for genre matches so they rank higher
                 movie_scores[title] = movie_scores.get(title, 0) + score + 0.1
 
     ranked = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
     return ranked[:top_n], not_found
+
+with st.spinner("Loading data..."):
+    games, movies = load_data()
+    vectorizer, game_vectors, movie_vectors = build_vectors(games, movies)
 
 st.markdown("---")
 st.markdown("### Enter your favorite games")
 st.caption("Separate multiple games with a comma")
 
 user_input = st.text_input("", placeholder="e.g. Halo, Minecraft, Elden Ring")
-
 num_results = st.slider("How many recommendations?", min_value=3, max_value=10, value=5)
 
 if st.button("🎬 Get Movie Recommendations", use_container_width=True):
