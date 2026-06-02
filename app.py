@@ -10,7 +10,6 @@ st.set_page_config(page_title="Games To Movies", page_icon="🎮", layout="cente
 st.title("🎮 Games To Movies")
 st.subheader("Find movies based on the video games you love")
 
-# Maps game genres (RAWG) to related movie genres (TMDB)
 GENRE_MAP = {
     'action': ['action', 'adventure', 'thriller'],
     'adventure': ['adventure', 'action', 'fantasy'],
@@ -83,45 +82,52 @@ def precompute_movie_genres(_movies):
     return [extract_movie_genres(g) for g in _movies['genre']]
 
 def get_target_genres(game_genres):
-    """Convert a game's genres into the set of movie genres we want to match."""
     targets = set()
     for gg in game_genres:
         if gg in GENRE_MAP:
             targets.update(GENRE_MAP[gg])
         else:
-            targets.add(gg)  # fall back to the raw genre name
+            targets.add(gg)
     return targets
+
+def find_game(game_title):
+    query = game_title.strip().lower()
+    titles = games['title'].astype(str).str.lower()
+    exact = games[titles == query]
+    if len(exact) > 0:
+        return exact.index[0]
+    partial = games[titles.str.contains(re.escape(query), na=False)]
+    if len(partial) > 0:
+        return partial.index[0]
+    return None
 
 def recommend(game_list, top_n=5):
     movie_scores = {}
+    matched_games = []
     not_found = []
 
     for game_title in game_list:
-        game_row = games[games['title'].astype(str).str.lower() == game_title.strip().lower()]
-        if len(game_row) == 0:
+        game_idx = find_game(game_title)
+        if game_idx is None:
             not_found.append(game_title)
             continue
 
-        game_idx = game_row.index[0]
+        matched_games.append(games.iloc[game_idx]['title'])
         game_genres = extract_game_genres(games.iloc[game_idx]['genre'])
         target_genres = get_target_genres(game_genres)
-
         game_vec = game_vectors[game_idx]
         similarities = cosine_similarity(game_vec, movie_vectors)[0]
 
         for i in range(len(movies)):
-            movie_genres = movie_genres_list[i]
-            overlap = len(target_genres & movie_genres)
+            overlap = len(target_genres & movie_genres_list[i])
             if overlap > 0:
-                # genre overlap is the main signal; similarity breaks ties
                 score = overlap + similarities[i]
                 title = movies.iloc[i]['title']
                 movie_scores[title] = movie_scores.get(title, 0) + score
 
     ranked = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
-    return ranked[:top_n], not_found
+    return ranked[:top_n], matched_games, not_found
 
-# Load everything
 with st.spinner("Loading data..."):
     games, movies = load_data()
     game_vectors, movie_vectors = build_vectors(games, movies)
@@ -131,7 +137,7 @@ st.markdown("---")
 st.markdown("### Enter your favorite games")
 st.caption("Separate multiple games with a comma")
 
-user_input = st.text_input("", placeholder="e.g. Halo, Minecraft, Elden Ring")
+user_input = st.text_input("", placeholder="e.g. Halo, Minecraft, Witcher")
 num_results = st.slider("How many recommendations?", min_value=3, max_value=10, value=5)
 
 if st.button("🎬 Get Movie Recommendations", use_container_width=True):
@@ -140,8 +146,10 @@ if st.button("🎬 Get Movie Recommendations", use_container_width=True):
     else:
         game_list = [g.strip() for g in user_input.split(",")]
         with st.spinner("Finding your movies..."):
-            results, not_found = recommend(game_list, top_n=num_results)
+            results, matched_games, not_found = recommend(game_list, top_n=num_results)
 
+        if matched_games:
+            st.success(f"Matched games: {', '.join(matched_games)}")
         if not_found:
             st.warning(f"Could not find: {', '.join(not_found)}")
 
