@@ -10,40 +10,15 @@ st.set_page_config(page_title="Games To Movies", page_icon="🎮", layout="cente
 st.title("🎮 Games To Movies")
 st.subheader("Find movies based on the video games you love")
 
-GENRE_MAP = {
-    'action': ['action', 'adventure', 'thriller'],
-    'adventure': ['adventure', 'action', 'fantasy'],
-    'rpg': ['fantasy', 'adventure', 'action'],
-    'shooter': ['action', 'war', 'thriller'],
-    'strategy': ['war', 'history', 'drama'],
-    'puzzle': ['mystery', 'thriller'],
-    'racing': ['action', 'thriller'],
-    'sports': ['drama'],
-    'simulation': ['drama', 'science fiction'],
-    'fighting': ['action'],
-    'arcade': ['action', 'family'],
-    'platformer': ['family', 'animation', 'adventure'],
-    'casual': ['family', 'comedy'],
-    'indie': ['drama', 'comedy'],
-    'massively multiplayer': ['action', 'science fiction'],
-    'family': ['family', 'comedy', 'animation'],
-    'board games': ['comedy', 'family'],
-    'card': ['comedy', 'drama'],
-    'educational': ['documentary', 'family'],
-}
-
 @st.cache_data
 def load_data():
-    games_raw = pd.read_csv("game_info_small.csv")
+    games_raw = pd.read_csv("steam_games.csv")
     movies_raw = pd.read_csv("tmdb_5000_movies.csv")
 
     games = pd.DataFrame({
         'title': games_raw['name'],
         'genre': games_raw['genres'].fillna(''),
-        'description': (
-            games_raw['genres'].fillna('') + ' ' +
-            games_raw['developers'].fillna('')
-        )
+        'description': games_raw['description'].fillna('')
     })
 
     movies = pd.DataFrame({
@@ -52,8 +27,8 @@ def load_data():
         'genre': movies_raw['genres'].fillna('')
     })
 
-    games = games.dropna(subset=['title'])
-    games = games[games['title'].astype(str).str.strip() != '']
+    games = games.dropna(subset=['title', 'description'])
+    games = games[games['description'].astype(str).str.strip() != '']
     games = games.drop_duplicates(subset=['title']).reset_index(drop=True)
 
     movies = movies.dropna(subset=['description'])
@@ -70,25 +45,6 @@ def build_vectors(_games, _movies):
     game_vectors = vectorizer.transform(_games['description'])
     movie_vectors = vectorizer.transform(_movies['description'])
     return game_vectors, movie_vectors
-
-def extract_movie_genres(genre_str):
-    return set(m.lower() for m in re.findall(r'"name":\s*"([^"]+)"', str(genre_str)))
-
-def extract_game_genres(genre_str):
-    return [g.strip().lower() for g in str(genre_str).split('||') if g.strip()]
-
-@st.cache_data
-def precompute_movie_genres(_movies):
-    return [extract_movie_genres(g) for g in _movies['genre']]
-
-def get_target_genres(game_genres):
-    targets = set()
-    for gg in game_genres:
-        if gg in GENRE_MAP:
-            targets.update(GENRE_MAP[gg])
-        else:
-            targets.add(gg)
-    return targets
 
 def find_game(game_title):
     query = game_title.strip().lower()
@@ -113,17 +69,12 @@ def recommend(game_list, top_n=5):
             continue
 
         matched_games.append(games.iloc[game_idx]['title'])
-        game_genres = extract_game_genres(games.iloc[game_idx]['genre'])
-        target_genres = get_target_genres(game_genres)
         game_vec = game_vectors[game_idx]
         similarities = cosine_similarity(game_vec, movie_vectors)[0]
 
-        for i in range(len(movies)):
-            overlap = len(target_genres & movie_genres_list[i])
-            if overlap > 0:
-                score = overlap + similarities[i]
-                title = movies.iloc[i]['title']
-                movie_scores[title] = movie_scores.get(title, 0) + score
+        for i, score in enumerate(similarities):
+            title = movies.iloc[i]['title']
+            movie_scores[title] = movie_scores.get(title, 0) + score
 
     ranked = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
     return ranked[:top_n], matched_games, not_found
@@ -131,13 +82,12 @@ def recommend(game_list, top_n=5):
 with st.spinner("Loading data..."):
     games, movies = load_data()
     game_vectors, movie_vectors = build_vectors(games, movies)
-    movie_genres_list = precompute_movie_genres(movies)
 
 st.markdown("---")
 st.markdown("### Enter your favorite games")
 st.caption("Separate multiple games with a comma")
 
-user_input = st.text_input("", placeholder="e.g. Halo, Minecraft, Witcher")
+user_input = st.text_input("", placeholder="e.g. Elden Ring, Hades, Portal 2")
 num_results = st.slider("How many recommendations?", min_value=3, max_value=10, value=5)
 
 if st.button("🎬 Get Movie Recommendations", use_container_width=True):
@@ -156,7 +106,7 @@ if st.button("🎬 Get Movie Recommendations", use_container_width=True):
         if results:
             st.markdown("### 🎬 Recommended Movies")
             for i, (movie, score) in enumerate(results):
-                st.markdown(f"**{i+1}. {movie}**")
+                st.markdown(f"**{i+1}. {movie}** — match: `{round(score, 3)}`")
         else:
             st.error("No recommendations found. Try different games.")
 
