@@ -62,12 +62,25 @@ def recommend(game_list, top_n=5):
         if len(game_row) == 0:
             not_found.append(game_title)
             continue
+
         game_idx = game_row.index[0]
+        game_genres = extract_game_genres(games.iloc[game_idx]['genre'])
         game_vec = game_vectors[game_idx]
         similarities = cosine_similarity(game_vec, movie_vectors)[0]
+
         for i, score in enumerate(similarities):
-            title = movies.iloc[i]['title']
-            movie_scores[title] = movie_scores.get(title, 0) + score
+            movie_genres = extract_movie_genres(movies.iloc[i]['genre'])
+            
+            # Check if any genre overlaps
+            genre_match = any(
+                any(gg in mg or mg in gg for mg in movie_genres)
+                for gg in game_genres
+            )
+            
+            if genre_match:
+                title = movies.iloc[i]['title']
+                # Boost score for genre matches so they rank higher
+                movie_scores[title] = movie_scores.get(title, 0) + score + 0.1
 
     ranked = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
     return ranked[:top_n], not_found
