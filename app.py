@@ -25,6 +25,9 @@ GENRE_MAP = {
     'free to play': ['action', 'adventure'],
 }
 
+TITLE_STOP = {'the', 'a', 'of', 'and', '2', '3', '4', '5', 'ii', 'iii', 'iv',
+              'edition', 'game', 'remastered', 'definitive'}
+
 @st.cache_data
 def load_data():
     games_raw = pd.read_csv("steam_games.csv")
@@ -55,7 +58,6 @@ def load_data():
 @st.cache_resource
 def build_vectors(_games, _movies):
     all_text = pd.concat([_games['description'], _movies['description']])
-    # ngram_range=(1,2) captures two-word phrases like "open world"
     vectorizer = TfidfVectorizer(stop_words='english', max_features=8000, ngram_range=(1, 2))
     vectorizer.fit(all_text)
     game_vectors = vectorizer.transform(_games['description'])
@@ -67,6 +69,15 @@ def precompute_movie_genres(_movies):
     return [set(m.lower() for m in re.findall(r'"name":\s*"([^"]+)"', str(g)))
             for g in _movies['genre']]
 
+@st.cache_data
+def precompute_title_words(_items):
+    result = []
+    for t in _items:
+        words = set(w for w in re.findall(r'\w+', str(t).lower())
+                    if w not in TITLE_STOP and len(w) > 2)
+        result.append(words)
+    return result
+
 def game_targets(genre_str):
     out = set()
     for g in str(genre_str).lower().split(','):
@@ -74,6 +85,10 @@ def game_targets(genre_str):
         if g:
             out.update(GENRE_MAP.get(g, [g]))
     return out
+
+def title_words(title):
+    return set(w for w in re.findall(r'\w+', str(title).lower())
+               if w not in TITLE_STOP and len(w) > 2)
 
 def find_game(game_title):
     query = game_title.strip().lower()
@@ -99,14 +114,19 @@ def recommend(game_list, top_n=5):
 
         matched_games.append(games.iloc[game_idx]['title'])
         targets = game_targets(games.iloc[game_idx]['genre'])
+        g_title_words = title_words(games.iloc[game_idx]['title'])
         game_vec = game_vectors[game_idx]
         similarities = cosine_similarity(game_vec, movie_vectors)[0]
 
         for i, score in enumerate(similarities):
-            # genre agreement boosts proportionally — no free points
+            # 1. description similarity, boosted if genres agree
             multiplier = 1.4 if (targets & movie_genres_list[i]) else 1.0
+            # 2. strong boost when titles overlap (direct adaptations)
+            title_overlap = len(g_title_words & movie_title_words[i])
+            title_bonus = title_overlap * 0.4
+
             title = movies.iloc[i]['title']
-            movie_scores[title] = movie_scores.get(title, 0) + (score * multiplier)
+            movie_scores[title] = movie_scores.get(title, 0) + (score * multiplier) + title_bonus
 
     ranked = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
     return ranked[:top_n], matched_games, not_found
@@ -115,12 +135,13 @@ with st.spinner("Loading data..."):
     games, movies = load_data()
     game_vectors, movie_vectors = build_vectors(games, movies)
     movie_genres_list = precompute_movie_genres(movies)
+    movie_title_words = precompute_title_words(movies['title'])
 
 st.markdown("---")
 st.markdown("### Enter your favorite games")
 st.caption("Separate multiple games with a comma")
 
-user_input = st.text_input("", placeholder="e.g. Elden Ring, Hades, Portal 2")
+user_input = st.text_input("", placeholder="e.g. Elden Ring, Mortal Kombat, Hades")
 num_results = st.slider("How many recommendations?", min_value=3, max_value=10, value=5)
 
 if st.button("🎬 Get Movie Recommendations", use_container_width=True):
