@@ -124,26 +124,31 @@ def recommend(game_list, top_n=5):
         game_vec = game_vectors[game_idx]
         similarities = cosine_similarity(game_vec, movie_vectors)[0]
 
-        # Build the rare-phrase title signal for this game
         core = core_game_name(games.iloc[game_idx]['title'])
         phrase = f" {core} " if len(core) >= 3 else None
-        phrase_freq = 0
-        if phrase:
-            phrase_freq = sum(1 for mt in movie_titles_norm if phrase in mt)
+        game_norm = normalize_title(games.iloc[game_idx]['title'])
+        phrase_freq = sum(1 for mt in movie_titles_norm if phrase in mt) if phrase else 0
 
         for i, score in enumerate(similarities):
             multiplier = 1.4 if (targets & movie_genres_list[i]) else 1.0
 
-            # exact game name appears in movie title, weighted by rarity
             title_bonus = 0.0
+            # direction 1: game name appears in movie title
             if phrase and phrase_freq and phrase in movie_titles_norm[i]:
                 title_bonus = 2.0 / (phrase_freq + 1)
+            else:
+                # direction 2: movie title appears in game name (subtitled games)
+                m_phrase = movie_titles_norm[i]
+                if len(m_phrase.strip()) >= 4 and m_phrase in game_norm:
+                    m_freq = sum(1 for mt in movie_titles_norm if m_phrase in mt)
+                    title_bonus = 2.0 / (m_freq + 1)
 
             title = movies.iloc[i]['title']
             movie_scores[title] = movie_scores.get(title, 0) + (score * multiplier) + title_bonus
 
     ranked = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
     return ranked[:top_n], matched_games, not_found
+
 
 with st.spinner("Loading data..."):
     games, movies = load_data()
