@@ -183,5 +183,4 @@ if st.button("Get Movie Recommendations", use_container_width=True):
         else:
             st.error("No recommendations found. Try different games.")
 
-st.markdown("---")
-st.caption("Built with Python, scikit-learn, and Streamlit | Games To Movies ML Recommender")
+
