@@ -26,7 +26,9 @@ GENRE_MAP = {
 }
 
 TITLE_STOP = {'the', 'a', 'of', 'and', '2', '3', '4', '5', 'ii', 'iii', 'iv',
-              'edition', 'game', 'remastered', 'definitive'}
+              'edition', 'game', 'remastered', 'definitive', 'year', 'goty',
+              'complete', 'deluxe', 'ultimate', 'collection', 'anniversary',
+              'enhanced', 'special', 'gold', 'directors', 'cut', 'hd', 'vr'}
 
 @st.cache_data
 def load_data():
