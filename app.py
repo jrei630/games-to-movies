@@ -5,9 +5,9 @@ import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-st.set_page_config(page_title="Games To Movies", page_icon="🎮", layout="centered")
+st.set_page_config(page_title="Games To Movies", page_icon="", layout="centered")
 
-st.title("🎮 Games To Movies")
+st.title("Games To Movies")
 st.subheader("Find movies based on the video games you love")
 
 GENRE_MAP = {
@@ -163,7 +163,7 @@ st.caption("Separate multiple games with a comma")
 user_input = st.text_input("", placeholder="e.g. Elden Ring, Mortal Kombat, Tomb Raider")
 num_results = st.slider("How many recommendations?", min_value=3, max_value=10, value=5)
 
-if st.button("🎬 Get Movie Recommendations", use_container_width=True):
+if st.button("Get Movie Recommendations", use_container_width=True):
     if user_input.strip() == "":
         st.warning("Please enter at least one game.")
     else:
@@ -177,7 +177,7 @@ if st.button("🎬 Get Movie Recommendations", use_container_width=True):
             st.warning(f"Could not find: {', '.join(not_found)}")
 
         if results:
-            st.markdown("### 🎬 Recommended Movies")
+            st.markdown("### Recommended Movies")
             for i, (movie, score) in enumerate(results):
                 st.markdown(f"**{i+1}. {movie}** — match: `{round(score, 3)}`")
         else:
