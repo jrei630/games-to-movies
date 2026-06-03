@@ -103,10 +103,10 @@ def recommend(game_list, top_n=5):
         similarities = cosine_similarity(game_vec, movie_vectors)[0]
 
         for i, score in enumerate(similarities):
-            # description similarity + small genre-match bonus
-            bonus = 0.1 if (targets & movie_genres_list[i]) else 0
+            # genre agreement boosts proportionally — no free points
+            multiplier = 1.4 if (targets & movie_genres_list[i]) else 1.0
             title = movies.iloc[i]['title']
-            movie_scores[title] = movie_scores.get(title, 0) + score + bonus
+            movie_scores[title] = movie_scores.get(title, 0) + (score * multiplier)
 
     ranked = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
     return ranked[:top_n], matched_games, not_found
