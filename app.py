@@ -2,10 +2,41 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import re
+import base64
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 st.set_page_config(page_title="Games To Movies", page_icon="", layout="centered")
+
+def set_background(image_file):
+    try:
+        with open(image_file, "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+    except Exception:
+        return
+    st.markdown(f"""
+    <style>
+    [data-testid="stAppViewContainer"] {{
+        background-color: #0a0c14;
+        background-image: linear-gradient(rgba(10,12,20,0.62), rgba(10,12,20,0.62)),
+                          url("data:image/png;base64,{data}");
+        background-size: cover, 340px 333px;
+        background-repeat: no-repeat, repeat;
+        background-position: center, center;
+        background-attachment: fixed, fixed;
+    }}
+    [data-testid="stHeader"] {{ background: rgba(0,0,0,0); }}
+    .block-container {{
+        background: rgba(255,255,255,0.88);
+        border-radius: 18px;
+        padding: 2.5rem 2.5rem 3rem;
+        margin-top: 1.5rem;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.45);
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+set_background("background.png")
 
 st.title("Games To Movies")
 st.subheader("Find movies based on the video games you love")
@@ -182,5 +213,4 @@ if st.button("Get Movie Recommendations", use_container_width=True):
                 st.markdown(f"**{i+1}. {movie}** — match: `{round(score, 3)}`")
         else:
             st.error("No recommendations found. Try different games.")
-
 
