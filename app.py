@@ -160,7 +160,7 @@ st.markdown("---")
 st.markdown("### Enter your favorite games")
 st.caption("Separate multiple games with a comma")
 
-user_input = st.text_input("", placeholder="e.g. Elden Ring, Mortal Kombat, Tomb Raider")
+user_input = st.text_input("", placeholder="")
 num_results = st.slider("How many recommendations?", min_value=3, max_value=10, value=5)
 
 if st.button("Get Movie Recommendations", use_container_width=True):
