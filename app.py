@@ -156,7 +156,7 @@ with st.spinner("Loading data..."):
     movie_genres_list = precompute_movie_genres(movies)
     movie_titles_norm = precompute_movie_titles_norm(movies['title'])
 
-st.markdown("---")
+
 st.markdown("### Enter your favorite games")
 st.caption("Separate multiple games with a comma")
 
